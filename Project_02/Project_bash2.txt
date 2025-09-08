@@ -1,0 +1,68 @@
+#!/bin/bash
+# ============================================================
+# Packet Sniffer Project Wrapper
+# Author: Your Name
+# Description: Sets up and runs the Python packet sniffer
+# ============================================================
+
+# -------------------------
+# Project Config
+# -------------------------
+PROJECT_DIR="$HOME/network_sniffer"
+SNIF_SCRIPT="$PROJECT_DIR/packet_sniffer.py"
+LOG_FILE="$PROJECT_DIR/packet_logs.txt"
+
+# -------------------------
+# Ensure project directory exists
+# -------------------------
+mkdir -p "$PROJECT_DIR"
+cd "$PROJECT_DIR" || exit 1
+
+# -------------------------
+# Check if sniffer script exists
+# -------------------------
+if [ ! -f "$SNIF_SCRIPT" ]; then
+    echo "[!] packet_sniffer.py not found in $PROJECT_DIR"
+    echo "[*] Creating default sniffer script..."
+    cat > "$SNIF_SCRIPT" <<'EOF'
+#!/usr/bin/env python3
+from scapy.all import sniff
+from scapy.layers.inet import IP, TCP
+from datetime import datetime
+
+LOG_FILE = "packet_logs.txt"
+
+def log_packet(packet_info):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a") as f:
+        f.write(f"[{timestamp}] {packet_info}\n")
+
+def process_packet(packet):
+    if IP in packet:
+        src_ip = packet[IP].src
+        dst_ip = packet[IP].dst
+        if TCP in packet:
+            src_port = packet[TCP].sport
+            dst_port = packet[TCP].dport
+            payload = bytes(packet[TCP].payload)
+            if dst_port in [80, 21] or src_port in [80, 21]:
+                info = f"IP {src_ip}:{src_port} -> {dst_ip}:{dst_port} | Payload: {payload[:50]}"
+                print(info)
+                log_packet(info)
+
+print("[*] Starting packet sniffing... Press Ctrl+C to stop.")
+sniff(filter="tcp", prn=process_packet, store=False)
+EOF
+    chmod +x "$SNIF_SCRIPT"
+fi
+
+# -------------------------
+# Run the sniffer
+# -------------------------
+echo "[*] Running packet sniffer..."
+sudo python3 "$SNIF_SCRIPT"
+
+# -------------------------
+# Completion message
+# -------------------------
+echo "[+] Packet sniffing session finished. Logs saved at $LOG_FILE"
